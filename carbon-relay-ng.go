@@ -113,6 +113,7 @@ func handle(c net.Conn, config Config) {
 	defer c.Close()
 	// TODO c.SetTimeout(60e9)
 	r := bufio.NewReaderSize(c, 4096)
+	var acc bytes.Buffer
 	for {
 
 		// Note that everything in this loop should proceed as fast as it can
@@ -121,7 +122,13 @@ func handle(c net.Conn, config Config) {
 		// must never block.
 
 		// note that we don't support lines longer than 4096B. that seems very reasonable..
-		buf, _, err := r.ReadLine()
+		part, isprefix, err := r.ReadLine()
+		acc.Write(part)
+		if isprefix {
+			continue
+		}
+		buf := acc.Bytes()
+		acc.Reset()
 
 		if nil != err {
 			if io.EOF != err {
@@ -130,8 +137,6 @@ func handle(c net.Conn, config Config) {
 			break
 		}
 
-		buf_copy := make([]byte, len(buf), len(buf))
-		copy(buf_copy, buf)
 		numIn.Inc(1)
 
 		err = m20.ValidatePacket(buf, config.Legacy_metric_validation.Level)
@@ -146,7 +151,7 @@ func handle(c net.Conn, config Config) {
 			continue
 		}
 
-		table.Dispatch(buf_copy)
+		table.Dispatch(buf)
 	}
 }
 
